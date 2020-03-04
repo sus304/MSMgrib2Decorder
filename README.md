@@ -6,6 +6,8 @@ gribファイルの処理ではNOAAが提供するデコードツールである
 
 ## Usage
 ``` Python
+from MSMgribDecorder import decord_MSMwind
+
 df_result = decord_MSMwind("Z__...Lsurf...bin", "Z__...L-pall...bin", 25.0, 130.0, 3):
 ```
 
