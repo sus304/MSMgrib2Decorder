@@ -13,6 +13,30 @@ import datetime
 import numpy as np
 import pandas as pd
 
+def _decord_section3(buf):
+    mesh_size = int.from_bytes(buf[2:6], 'big')
+
+    if buf[10] != 6:  # R6371kmの球モデル
+        print('Error! Missing Earth model.')
+        exit()
+
+    mesh_size_lon = int.from_bytes(buf[26:30], 'big') - 1
+    mesh_size_lat = int.from_bytes(buf[30:34], 'big')
+
+    lat_init = int.from_bytes(buf[42:46], 'big')
+    lon_init = int.from_bytes(buf[46:50], 'big')
+    lat_end = int.from_bytes(buf[51:55], 'big')
+    lon_end = int.from_bytes(buf[55:59], 'big')
+    delta_lon = int.from_bytes(buf[59:63], 'big')
+    delta_lat = int.from_bytes(buf[63:67], 'big')
+
+    scanning_mode = buf[67]
+    if scanning_mode != 0:
+        print('Error! Un-match scanning mode.')
+        exit()
+
+    return mesh_size, mesh_size_lon, mesh_size_lat, lat_init, lon_init, delta_lon, delta_lat
+
 
 def _decord(grib2_file_path, lat, lon, delta_hours):
     # input
@@ -69,41 +93,53 @@ def _decord(grib2_file_path, lat, lon, delta_hours):
 
     # 3rd section - define mesh section
     ########################################################
-    section_size = int.from_bytes(f.read(4), 'big')
-    buf = f.read(section_size - 4)
-    if buf[0] != 3:
-        print('Un-match 3rd-section number.')
-        exit()
-    
-    mesh_size = int.from_bytes(buf[2:6], 'big')
+    # section_size = int.from_bytes(f.read(4), 'big')
+    # buf = f.read(section_size - 4)
+    # if buf[0] != 3:
+    #     print('Un-match 3rd-section number.')
+    #     exit()
 
-    if buf[10] != 6:  # R6371kmの球モデル
-        print('Error! Missing Earth model.')
-        exit()
-    
-    mesh_size_lon = int.from_bytes(buf[26:30], 'big') - 1
-    mesh_size_lat = int.from_bytes(buf[30:34], 'big')
+    # mesh_size = int.from_bytes(buf[2:6], 'big')
 
-    lat_init = int.from_bytes(buf[42:46], 'big')
-    lon_init = int.from_bytes(buf[46:50], 'big')
-    lat_end = int.from_bytes(buf[51:55], 'big')
-    lon_end = int.from_bytes(buf[55:59], 'big')
-    delta_lon = int.from_bytes(buf[59:63], 'big')
-    delta_lat = int.from_bytes(buf[63:67], 'big')
+    # if buf[10] != 6:  # R6371kmの球モデル
+    #     print('Error! Missing Earth model.')
+    #     exit()
 
-    scanning_mode = buf[67]
-    if scanning_mode != 0:
-        print('Error! Un-match scanning mode.')
-        exit()
+    # mesh_size_lon = int.from_bytes(buf[26:30], 'big') - 1
+    # mesh_size_lat = int.from_bytes(buf[30:34], 'big')
 
-    readed_byte += section_size
+    # lat_init = int.from_bytes(buf[42:46], 'big')
+    # lon_init = int.from_bytes(buf[46:50], 'big')
+    # lat_end = int.from_bytes(buf[51:55], 'big')
+    # lon_end = int.from_bytes(buf[55:59], 'big')
+    # delta_lon = int.from_bytes(buf[59:63], 'big')
+    # delta_lat = int.from_bytes(buf[63:67], 'big')
 
+    # scanning_mode = buf[67]
+    # if scanning_mode != 0:
+    #     print('Error! Un-match scanning mode.')
+    #     exit()
+
+    # readed_byte += section_size
+
+    mesh_size, mesh_size_lon, mesh_size_lat, lat_init, lon_init, delta_lon, delta_lat = 0,0,0,0,0,0,0
     flag_pickup = False
     while readed_byte <= file_size-4-1:
-        # 4th section - define product section
-        ########################################################
         section_size = int.from_bytes(f.read(4), 'big')
         buf = f.read(section_size - 4)
+
+        # 3rd section - define mesh section
+        ########################################################
+        if buf[0] == 3:
+            mesh_size, mesh_size_lon, mesh_size_lat, lat_init, lon_init, delta_lon, delta_lat = _decord_section3(buf)
+
+            readed_byte += section_size  # 3rd section分
+            section_size = int.from_bytes(f.read(4), 'big')
+            buf = f.read(section_size - 4)
+
+        # 4th section - define product section
+        ########################################################
+
         if buf[0] != 4:
             print('Un-match 4th-section number.')
             exit()
@@ -112,8 +148,8 @@ def _decord(grib2_file_path, lat, lon, delta_hours):
         param_category = buf[5]
         param_number = buf[6]
 
-        if buf[8] != 31:  # Meso value forecast
-            print('Error! Not MSM.')
+        if buf[8] != 31 and buf[8] != 2:  # Meso or Global value forecast
+            print('Error! Not MSM and GSM.')
             exit()
 
         forecast_deltatime = int.from_bytes(buf[14:18], 'big')
@@ -135,7 +171,7 @@ def _decord(grib2_file_path, lat, lon, delta_hours):
             level_value = int.from_bytes(buf[20:24], 'big')
 
         readed_byte += section_size
-        
+
         # 5th section - data presentation section
         ########################################################
         section_size = int.from_bytes(f.read(4), 'big')
@@ -146,7 +182,7 @@ def _decord(grib2_file_path, lat, lon, delta_hours):
         if int.from_bytes(buf[5:7], 'big') != 0:
             print('Error! Un-match data presentation template')
             exit()
-        
+
         if flag_pickup:
             ref_value = struct.unpack('>f', buf[7:11])[0]
             int_16bit = int.from_bytes(buf[11:13], 'big')
@@ -200,7 +236,7 @@ def _decord(grib2_file_path, lat, lon, delta_hours):
                         int_16bit = int.from_bytes(byte_16bit, 'big')
                         int_12bit = int_16bit & 0b0000111111111111
                         value = (ref_value + int_12bit * 2 ** bin_factor) / 10 ** dec_factor
-        
+
                     if param_category == 2:
                         if param_number == 2:
                             u_list.append(value)
@@ -255,7 +291,6 @@ def _sort(h, p, u, v):
     return h_res, p_res, u_res, v_res
 
 
-
 def decord_MSMwind(surf_grib2_file_path, pall_grib2_file_path, lat, lon, delta_hours=0):
     height_list = []
     pressure_list = []
@@ -281,7 +316,41 @@ def decord_MSMwind(surf_grib2_file_path, pall_grib2_file_path, lat, lon, delta_h
             alt = alt_itr
         else:
             height_list, pressure_list, u_wind_list, v_wind_list = _sort(height_list, pressure_list, u_wind_list, v_wind_list)
-        
+
+    df_data = pd.DataFrame()
+    df_data['height'] = height_list
+    df_data['pressure'] = pressure_list
+    df_data['u_wind'] = u_wind_list
+    df_data['v_wind'] = v_wind_list
+
+    wind_vel_list = np.sqrt(df_data['u_wind'] ** 2 + df_data['v_wind'] ** 2)
+    wind_dir_list = np.rad2deg(np.arctan2(df_data['u_wind'], df_data['v_wind']) + np.pi)
+
+    df_data['wind_velocity'] = wind_vel_list
+    df_data['wind_direction'] = wind_dir_list
+
+    return df_data
+
+def decord_GSMwind(gsm_grib2_file_path, lat, lon, delta_hours=0):
+    height_list = [10]
+    pressure_list = [101.3]
+    u_wind_list = []
+    v_wind_list = []
+
+    h, p, u, v = _decord(gsm_grib2_file_path, lat, lon, delta_hours)
+    height_list.extend(h)
+    pressure_list.extend([100.0, 92.5, 85.0, 70.0, 60.0, 50.0, 40.0, 30.0, 25.0, 20.0, 15.0, 10.0, 7.0, 5.0, 3.0, 2.0, 1.0])
+    u_wind_list.extend(u)
+    v_wind_list.extend(v)
+
+    # altの順番チェック
+    alt = 0
+    for alt_itr in height_list:
+        if alt_itr > alt:
+            alt = alt_itr
+        else:
+            height_list, pressure_list, u_wind_list, v_wind_list = _sort(height_list, pressure_list, u_wind_list, v_wind_list)
+
     df_data = pd.DataFrame()
     df_data['height'] = height_list
     df_data['pressure'] = pressure_list
@@ -299,8 +368,14 @@ def decord_MSMwind(surf_grib2_file_path, pall_grib2_file_path, lat, lon, delta_h
 
 
 if __name__ == "__main__":
+    # MSM
     pall_file = "Z__C_RJTD_yyyymmddhh0000_MSM_GPV_Rjp_L-pall_FH00-15_grib2.bin"
     surf_file = "Z__C_RJTD_yyyymmddhh0000_MSM_GPV_Rjp_Lsurf_FH00-15_grib2.bin"
-    df = decord_MSMwind(surf_file, pall_file, 22.4, 130.0, 9)
-    df.to_csv('debug.csv')
-    
+    df = decord_MSMwind(surf_file, pall_file, 22.4, 130.0, 0)
+    df.to_csv('debug_msm.csv')
+
+    # GSM
+    gsm_file = 'Z__C_RJTD_yyyymmddhh0000_GSM_GPV_Rgl_FD0000_grib2.bin'
+    df = decord_GSMwind(gsm_file, 35.0, 135.0, 0)
+    df.to_csv('debug_gsm.csv')
+
