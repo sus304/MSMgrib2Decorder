@@ -1,5 +1,5 @@
 # MSMgrib2Decorder
-気象庁が提供するMSM数値予報GPVのgribファイルをデコードして地上から上層までの風でpandas.DataFrameを生成するスクリプト。
+気象庁が提供する数値予報GPVのgribファイルをデコードして地上から上層までの風でpandas.DataFrameを生成するスクリプト。
 
 gribファイルの処理ではNOAAが提供するデコードツールであるwgrib2が標準的であるが、
 データをpandasで処理するには一旦ファイル出力を噛ませる必要があるので、風に絞ることでpythonネイティブでデコードできるツールを作成。
@@ -8,10 +8,14 @@ gribファイルの処理ではNOAAが提供するデコードツールである
 ``` Python
 from MSMgribDecorder import decord_MSMwind
 
-df_result = decord_MSMwind("Z__...Lsurf...bin", "Z__...L-pall...bin", 25.0, 130.0, 3):
+# MSM
+df_result = decord_MSMwind("Z__...Lsurf...bin", "Z__...L-pall...bin", 25.0, 130.0, 3)
+
+# GSM
+df_result = decord_GSMwind("Z__....bin", 25.0, 130.0, 0)
 ```
 
-## input
+## input(MSM)
 1st argument: 地表面grib2ファイル(Z__C_RJTD_yyyymmddhh0000_MSM_GPV_Rjp_Lsurf_FH00-15_grib2.bin)
 
 2nd argument: 気圧面grib2ファイル(Z__C_RJTD_yyyymmddhh0000_MSM_GPV_Rjp_L-pall_FH00-15_grib2.bin)
@@ -21,6 +25,16 @@ df_result = decord_MSMwind("Z__...Lsurf...bin", "Z__...L-pall...bin", 25.0, 130.
 4th argument: 経度[deg]
 
 5th argument: gribファイル計算時刻から取得する予報時刻の差分時間(0, 3, 6, 9, ...のようにgribファイルの上限に応じて3時間毎)
+
+## input(GSM)
+1st argument: grib2ファイル(Z__C_RJTD_yyyymmddhh0000_GSM_GPV_Rgl_FD0000_grib2.bin)
+
+2nd argument: 緯度[deg]
+
+3rd argument: 経度[deg]
+
+4th argument: gribファイル計算時刻から取得する予報時刻の差分時間(0, 6, 12, 18)のgribファイルの上限に応じて6時間毎)
+
 
 ## output
 pandas.DataFrame
